@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Send, Sparkles, Bot, Scale, RefreshCw, Copy, Check } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Send, CheckCircle2 } from 'lucide-react';
 
 const MOCK_DATA = {
   problem: "Write an code for Factorial function in js",
@@ -14,13 +14,12 @@ const MOCK_DATA = {
 };
 
 const FormattedText = ({ text }) => {
-  // Ultra simple markdown formatter for mock display purposes
   return (
-    <div className="text-sm leading-relaxed text-gray-300 space-y-4 font-mono whitespace-pre-wrap">
+    <div className="text-[15px] leading-relaxed text-[#d1d5db] space-y-4 font-sans whitespace-pre-wrap">
       {text.split('```').map((block, idx) => {
         if (idx % 2 !== 0) {
           return (
-            <div key={idx} className="bg-gray-900 border border-gray-800 rounded-lg p-4 overflow-x-auto text-blue-200">
+            <div key={idx} className="bg-[#1e1e1e] rounded-md p-4 overflow-x-auto text-[#9cdcfe] font-mono text-sm">
               <code>{block.replace(/^javascript\n/, '')}</code>
             </div>
           );
@@ -31,197 +30,197 @@ const FormattedText = ({ text }) => {
   );
 };
 
-const SolutionColumn = ({ title, icon: Icon, time, solution, colorClass, borderClass, onCopy }) => {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = () => {
-    onCopy();
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <div className={`glass-panel rounded-2xl p-6 flex flex-col h-full border-t-4 shadow-xl ${borderClass} transition-transform duration-300 hover:-translate-y-1`}>
-      <div className="flex items-center justify-between mb-6 pb-4 border-b border-[var(--color-border-subtle)]">
-        <div className="flex items-center gap-3">
-          <div className={`p-2 rounded-lg bg-gray-800/80 ${colorClass}`}>
-            <Icon size={20} />
-          </div>
-          <div>
-            <h3 className="font-semibold text-gray-100">{title}</h3>
-            <span className="text-xs text-gray-500 opacity-80">{time}ms response time</span>
-          </div>
-        </div>
-        <button 
-          onClick={handleCopy}
-          className="p-2 rounded-lg hover:bg-gray-800/50 text-gray-400 hover:text-white transition-colors"
-          title="Copy Response"
-        >
-          {copied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
-        </button>
-      </div>
-      
-      <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar" style={{maxHeight: '500px'}}>
-        <FormattedText text={solution} />
-      </div>
-    </div>
-  );
-};
-
 function App() {
   const [prompt, setPrompt] = useState('');
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [history, setHistory] = useState([]);
+  // Determines if any chat interaction is currently loading so we can disable the send button
+  const isCurrentlyLoading = history.length > 0 && history[history.length - 1].loading;
+  const endOfContentRef = useRef(null);
 
   const handleRunBattle = (e) => {
-    e.preventDefault();
-    if (!prompt.trim()) return;
+    if (e) e.preventDefault();
+    if (!prompt.trim() || isCurrentlyLoading) return;
     
-    setLoading(true);
-    // Simulate API call
+    const submittedPrompt = prompt.trim();
+    // Clear the input instantly so it turns blank
+    setPrompt('');
+    
+    // Add to history as loading
+    setHistory(prev => [...prev, { prompt: submittedPrompt, loading: true }]);
+
+    // Smooth scroll down to current prompt
     setTimeout(() => {
-      setData(MOCK_DATA);
-      setLoading(false);
-    }, 1500);
+      endOfContentRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 50);
+
+    // Simulate API resolving
+    setTimeout(() => {
+      setHistory(prev => {
+        const newHistory = [...prev];
+        newHistory[newHistory.length - 1] = { 
+          prompt: submittedPrompt, 
+          data: MOCK_DATA, 
+          loading: false 
+        };
+        return newHistory;
+      });
+      // Smooth scroll exactly to the new result
+      setTimeout(() => {
+        endOfContentRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    }, 1200);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleRunBattle();
+    }
   };
 
   return (
-    <div className="min-h-screen bg-[var(--color-dark-bg)] text-white selection:bg-purple-500/30 font-sans">
+    <div className="h-screen bg-[#0f0f0f] text-white font-sans flex flex-col overflow-hidden">
       
-      {/* Top Section: Prompt Input */}
-      <div className="sticky top-0 z-50 glass-panel border-b-0 border-b-[var(--color-border-subtle)] bg-[#030712]/80 pt-8 pb-6 px-4">
-        <div className="max-w-4xl mx-auto text-center">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent mb-6 inline-flex items-center gap-2">
-            <Sparkles size={28} className="text-purple-400" />
-            AI Battle Arena
-          </h1>
-          
-          <form onSubmit={handleRunBattle} className="relative group max-w-3xl mx-auto">
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-500 rounded-2xl blur opacity-25 group-focus-within:opacity-50 transition-opacity duration-500"></div>
-            <div className="relative flex items-center bg-gray-900 border border-gray-700 focus-within:border-gray-500 rounded-2xl overflow-hidden shadow-2xl transition-all">
-              <input 
-                type="text" 
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Enter your question or problem..."
-                className="w-full bg-transparent px-6 py-5 text-lg outline-none text-gray-100 placeholder-gray-500"
-              />
-              <button 
-                type="submit" 
-                disabled={loading || !prompt.trim()}
-                className="mr-3 px-6 py-3 bg-white text-black font-semibold rounded-xl flex items-center gap-2 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
-              >
-                {loading ? <RefreshCw size={18} className="animate-spin" /> : <Send size={18} />}
-                Run Battle
-              </button>
-            </div>
-          </form>
-
-          {/* Example Chips */}
-          <div className="mt-6 flex flex-wrap justify-center gap-3">
-            {["Write a Factorial function in JS", "Explain Quantum Computing", "Next.js vs React"].map((chip, idx) => (
-              <button 
-                key={idx} 
-                onClick={() => setPrompt(chip)}
-                className="px-4 py-2 text-sm text-gray-400 bg-gray-800/50 hover:bg-gray-800 hover:text-gray-200 border border-gray-700/50 rounded-full transition-all"
-              >
-                {chip}
-              </button>
-            ))}
+      {/* Scrollable Main Area */}
+      <div className="flex-1 overflow-y-auto w-full flex flex-col items-center custom-scrollbar">
+        
+        {/* Intro Header: Only shows if there's no history */}
+        {history.length === 0 && (
+          <div className="mt-[20vh] text-center px-4">
+            <h1 className="text-2xl font-medium text-[#ececec]">Compare AI responses</h1>
+            <p className="text-base text-[#888] mt-2">Which response is better?</p>
           </div>
+        )}
+
+        <div className="w-full max-w-6xl mx-auto px-4 pt-12 pb-8 flex flex-col gap-16">
+          {history.map((interaction, index) => {
+            const data = interaction.data;
+            const winner = data 
+              ? (data.judge.solution_1_score > data.judge.solution_2_score ? 1 : (data.judge.solution_2_score > data.judge.solution_1_score ? 2 : 0)) 
+              : 0;
+
+            return (
+              <div key={index} className="flex flex-col animate-in fade-in duration-500 w-full">
+                
+                {/* User Prompt Display */}
+                <div className="flex justify-end mb-8">
+                  <div className="bg-[#212121] text-[#ececec] px-5 py-3 rounded-2xl max-w-2xl text-[15px]">
+                    {interaction.prompt}
+                  </div>
+                </div>
+
+                {/* Loading Indicator */}
+                {interaction.loading && (
+                  <div className="flex justify-start mb-8 text-[#888] text-sm animate-pulse">
+                    Thinking... it usually takes a few seconds to compare models.
+                  </div>
+                )}
+
+                {/* Responses & Judge Area (only when not loading) */}
+                {data && !interaction.loading && (
+                  <div className="flex flex-col">
+                    <div className="grid md:grid-cols-2 gap-6 w-full mb-12">
+                      {/* Response 1 Panel */}
+                      <div className={`flex flex-col border rounded-xl p-5 bg-[#171717]/50 hover:bg-[#171717] transition-colors ${winner === 1 ? 'border-green-500/50' : 'border-[#2d2d2d]'}`}>
+                        <div className="flex items-center justify-between mb-4 pb-3 border-b border-[#2d2d2d]/60">
+                          <h2 className="text-sm font-semibold text-[#ccc] flex items-center gap-2">
+                            Response 1
+                            {winner === 1 && (
+                              <span className="flex items-center gap-1 text-green-500 bg-green-500/10 px-2 py-0.5 rounded text-xs font-medium">
+                                <CheckCircle2 size={12} />
+                                Recommended
+                              </span>
+                            )}
+                          </h2>
+                          <button className="text-xs text-[#888] hover:text-[#ccc] px-3 py-1.5 border border-[#2d2d2d] rounded flex items-center gap-2 transition-colors">
+                            Prefer this response
+                          </button>
+                        </div>
+                        <div className="flex-1">
+                          <FormattedText text={data.solution_1} />
+                        </div>
+                      </div>
+
+                      {/* Response 2 Panel */}
+                      <div className={`flex flex-col border rounded-xl p-5 bg-[#171717]/50 hover:bg-[#171717] transition-colors ${winner === 2 ? 'border-green-500/50' : 'border-[#2d2d2d]'}`}>
+                        <div className="flex items-center justify-between mb-4 pb-3 border-b border-[#2d2d2d]/60">
+                          <h2 className="text-sm font-semibold text-[#ccc] flex items-center gap-2">
+                            Response 2
+                            {winner === 2 && (
+                              <span className="flex items-center gap-1 text-green-500 bg-green-500/10 px-2 py-0.5 rounded text-xs font-medium">
+                                <CheckCircle2 size={12} />
+                                Recommended
+                              </span>
+                            )}
+                          </h2>
+                          <button className="text-xs text-[#888] hover:text-[#ccc] px-3 py-1.5 border border-[#2d2d2d] rounded flex items-center gap-2 transition-colors">
+                            Prefer this response
+                          </button>
+                        </div>
+                        <div className="flex-1">
+                          <FormattedText text={data.solution_2} />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Exact Judge Recommendation Layout from Reference Image */}
+                    <div className="w-full">
+                      <h3 className="text-[12px] font-semibold tracking-wider text-[#888] uppercase mb-3 text-left">Judge Recommendation</h3>
+                      
+                      <div className="bg-[#171717] border border-[#2d2d2d] rounded-xl p-6 flex flex-col">
+                        <div className="flex flex-col space-y-2 mb-4">
+                          <div className="flex items-center gap-3">
+                            <CheckCircle2 size={20} className="text-[#3b82f6]" strokeWidth={2} />
+                            <span className="text-[15px] font-medium text-[#ececec]">Recommended: Response {winner}</span>
+                          </div>
+                          
+                          <div className="text-[13px] text-[#888]">
+                            Score: {data.judge.solution_1_score} vs {data.judge.solution_2_score}
+                          </div>
+                        </div>
+                        
+                        <div className="border-t border-[#2d2d2d] pt-4 mt-1">
+                          <p className="text-[14px] text-[#888] mb-1 text-left">Explanation:</p>
+                          <p className="text-[14px] text-[#ccc] leading-relaxed text-left">
+                            {winner === 1 ? data.judge.solution_1_reasoning : data.judge.solution_2_reasoning}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {/* Empty element to scroll to */}
+          <div ref={endOfContentRef} className="h-4" />
         </div>
       </div>
 
-      {/* Main Content Area */}
-      <main className="max-w-7xl mx-auto px-4 py-12">
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 opacity-70 animate-pulse">
-            <Bot size={48} className="text-gray-600 mb-4" />
-            <p className="text-gray-400">Models are generating responses...</p>
-          </div>
-        ) : data ? (
-          <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700 fill-mode-both">
-            
-            {/* AI Response Comparison */}
-            <div className="grid md:grid-cols-2 gap-8 align-start items-start">
-              <SolutionColumn 
-                title="AI Model 1" 
-                icon={Bot} 
-                time={845}
-                solution={data.solution_1} 
-                colorClass="text-blue-400"
-                borderClass="border-blue-500/50 hover:border-blue-500"
-                onCopy={() => navigator.clipboard.writeText(data.solution_1)}
-              />
-              <SolutionColumn 
-                title="AI Model 2" 
-                icon={Bot} 
-                time={912}
-                solution={data.solution_2} 
-                colorClass="text-purple-400"
-                borderClass="border-purple-500/50 hover:border-purple-500"
-                onCopy={() => navigator.clipboard.writeText(data.solution_2)}
-              />
-            </div>
-
-            {/* Judge Section */}
-            <div className="relative p-1">
-              {/* Glowing Border Wrap */}
-              <div className="absolute inset-0 bg-gradient-to-r from-green-500/40 via-emerald-500/40 to-teal-500/40 rounded-3xl blur-md opacity-30"></div>
-              
-              <div className="relative glass-panel rounded-3xl p-8 md:p-10 border border-green-500/20 shadow-2xl">
-                <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 pb-6 border-b border-gray-800">
-                  <div className="flex items-center gap-4 mb-4 md:mb-0">
-                    <div className="p-3 bg-green-500/10 rounded-2xl border border-green-500/20">
-                      <Scale size={28} className="text-green-400" />
-                    </div>
-                    <div>
-                      <h2 className="text-2xl font-bold text-gray-100">Judge Recommendation</h2>
-                      <p className="text-gray-400 text-sm mt-1">Evaluated based on Accuracy, Clarity, & Depth</p>
-                    </div>
-                  </div>
-                  <div className="bg-green-500/10 text-green-400 px-6 py-2 rounded-full border border-green-500/20 font-semibold flex items-center gap-2">
-                    <Check size={18} /> Winner: AI Model 2
-                  </div>
-                </div>
-
-                <div className="grid md:grid-cols-2 gap-10">
-                  <div className="space-y-6">
-                    <div className="flex justify-between items-center bg-gray-900/50 p-4 rounded-xl border border-gray-800">
-                      <span className="font-semibold text-gray-300">Model 1 Score</span>
-                      <span className="text-2xl font-bold text-blue-400">{data.judge.solution_1_score}<span className="text-lg text-gray-600">/10</span></span>
-                    </div>
-                    <div className="flex justify-between items-center bg-gray-900/80 p-4 rounded-xl border border-green-900/40 shadow-[0_0_15px_rgba(34,197,94,0.1)]">
-                      <span className="font-semibold text-gray-100">Model 2 Score</span>
-                      <span className="text-2xl font-bold text-green-400">{data.judge.solution_2_score}<span className="text-lg text-gray-600">/10</span></span>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-6">
-                    <div>
-                      <h4 className="text-sm font-semibold uppercase tracking-wider text-gray-500 mb-2">Model 1 Review</h4>
-                      <p className="text-sm text-gray-300 leading-relaxed border-l-2 border-blue-500/30 pl-4">{data.judge.solution_1_reasoning}</p>
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-semibold uppercase tracking-wider text-gray-500 mb-2">Model 2 Review</h4>
-                      <p className="text-sm text-gray-300 leading-relaxed border-l-2 border-green-500/50 pl-4">{data.judge.solution_2_reasoning}</p>
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-            </div>
-            
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center py-32 text-center opacity-50">
-            <Bot size={64} className="text-gray-700 mb-6" />
-            <h3 className="text-xl text-gray-400 font-medium">Ready for Battle</h3>
-            <p className="text-gray-500 max-w-md mt-2">Enter a prompt above to see how different AI models tackle the exact same problem.</p>
-          </div>
-        )}
-      </main>
-
+      {/* Fixed Bottom Input Area (ChatGPT Style) */}
+      <div className="w-full flex justify-center pb-6 pt-2 bg-gradient-to-t from-[#0f0f0f] via-[#0f0f0f]/90 to-transparent">
+        <form onSubmit={handleRunBattle} className="w-full max-w-3xl px-4 relative">
+          <textarea
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Ask anything..."
+            rows={1}
+            style={{ minHeight: '52px', maxHeight: '200px' }}
+            className="w-full bg-[#212121] border border-[#2d2d2d] focus-visible:border-[#555] rounded-2xl pl-5 pr-14 py-[14px] text-[15px] outline-none text-[#ececec] placeholder-[#888] shadow-sm transition-colors resize-none"
+          />
+          <button 
+            type="submit" 
+            disabled={isCurrentlyLoading || !prompt.trim()}
+            className="absolute right-7 bottom-4 p-2 bg-[#ececec] text-black rounded-lg hover:bg-white disabled:bg-[#333] disabled:text-[#444] transition-colors flex items-center justify-center cursor-pointer disabled:cursor-not-allowed"
+          >
+            <Send size={16} />
+          </button>
+        </form>
+      </div>
+      <div className="text-center pb-4 text-xs text-[#666]">
+        AI Battle Arena can make mistakes. Consider verifying responses.
+      </div>
     </div>
   );
 }
