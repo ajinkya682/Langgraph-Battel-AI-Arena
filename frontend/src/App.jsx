@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, CheckCircle2 } from 'lucide-react';
+import { Send, CheckCircle2, MessageSquare, Plus, PanelLeftClose, PanelLeft, Trash2 } from 'lucide-react';
 
 const MOCK_DATA = {
   problem: "Write an code for Factorial function in js",
@@ -31,32 +31,71 @@ const FormattedText = ({ text }) => {
 };
 
 function App() {
+  const [sessions, setSessions] = useState([
+    { id: Date.now().toString(), title: 'New Chat', history: [] }
+  ]);
+  const [currentSessionId, setCurrentSessionId] = useState(sessions[0].id);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  
+  const activeSession = sessions.find(s => s.id === currentSessionId) || sessions[0];
+  const history = activeSession.history;
+  
   const [prompt, setPrompt] = useState('');
-  const [history, setHistory] = useState([]);
-  // Determines if any chat interaction is currently loading so we can disable the send button
   const isCurrentlyLoading = history.length > 0 && history[history.length - 1].loading;
   const endOfContentRef = useRef(null);
+
+  const startNewChat = () => {
+    const newSession = { id: Date.now().toString(), title: 'New Chat', history: [] };
+    setSessions(prev => [newSession, ...prev]);
+    setCurrentSessionId(newSession.id);
+  };
+
+  const deleteSession = (e, id) => {
+    e.stopPropagation();
+    const newSessions = sessions.filter(s => s.id !== id);
+    if (newSessions.length === 0) {
+      const newSession = { id: Date.now().toString(), title: 'New Chat', history: [] };
+      setSessions([newSession]);
+      setCurrentSessionId(newSession.id);
+    } else {
+      setSessions(newSessions);
+      if (currentSessionId === id) {
+        setCurrentSessionId(newSessions[0].id);
+      }
+    }
+  };
+
+  const updateSessionHistory = (id, newHistoryUpdater) => {
+    setSessions(prev => prev.map(s => {
+      if (s.id === id) {
+        const updatedHistory = typeof newHistoryUpdater === 'function' ? newHistoryUpdater(s.history) : newHistoryUpdater;
+        let title = s.title;
+        if (s.title === 'New Chat' && updatedHistory.length > 0) {
+           title = updatedHistory[0].prompt.slice(0, 30) + (updatedHistory[0].prompt.length > 30 ? '...' : '');
+        }
+        return { ...s, title, history: updatedHistory };
+      }
+      return s;
+    }));
+  };
 
   const handleRunBattle = (e) => {
     if (e) e.preventDefault();
     if (!prompt.trim() || isCurrentlyLoading) return;
     
     const submittedPrompt = prompt.trim();
-    // Clear the input instantly so it turns blank
     setPrompt('');
     
-    // Add to history as loading
-    setHistory(prev => [...prev, { prompt: submittedPrompt, loading: true }]);
+    const sessionId = currentSessionId;
+    updateSessionHistory(sessionId, (prevHistory) => [...prevHistory, { prompt: submittedPrompt, loading: true }]);
 
-    // Smooth scroll down to current prompt
     setTimeout(() => {
       endOfContentRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, 50);
 
-    // Simulate API resolving
     setTimeout(() => {
-      setHistory(prev => {
-        const newHistory = [...prev];
+      updateSessionHistory(sessionId, (prevHistory) => {
+        const newHistory = [...prevHistory];
         newHistory[newHistory.length - 1] = { 
           prompt: submittedPrompt, 
           data: MOCK_DATA, 
@@ -64,11 +103,21 @@ function App() {
         };
         return newHistory;
       });
-      // Smooth scroll exactly to the new result
       setTimeout(() => {
         endOfContentRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
     }, 1200);
+  };
+
+  const handlePreferResponse = (sessionId, interactionIndex, responseNumber) => {
+    updateSessionHistory(sessionId, (prevHistory) => {
+      const newHistory = [...prevHistory];
+      newHistory[interactionIndex] = {
+        ...newHistory[interactionIndex],
+        preferredResponse: responseNumber
+      };
+      return newHistory;
+    });
   };
 
   const handleKeyDown = (e) => {
@@ -79,8 +128,57 @@ function App() {
   };
 
   return (
-    <div className="h-screen bg-[#0f0f0f] text-white font-sans flex flex-col overflow-hidden">
+    <div className="flex h-screen bg-[#0f0f0f] text-white font-sans overflow-hidden">
       
+      {/* Sidebar */}
+      <div className={`flex-shrink-0 bg-[#090909] border-r border-[#2d2d2d] transition-all duration-300 flex flex-col ${isSidebarOpen ? 'w-[260px]' : 'w-0 border-none opacity-0 overflow-hidden'}`}>
+        <div className="p-3">
+          <button 
+            onClick={startNewChat}
+            className="flex items-center gap-2 w-full px-3 py-2 text-sm text-[#ececec] hover:bg-[#212121] rounded-lg transition-colors border border-[#2d2d2d]"
+          >
+            <Plus size={16} />
+            <span>New Chat</span>
+          </button>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto w-full custom-scrollbar py-2">
+          <div className="px-3 pb-2 text-xs font-semibold text-[#888]">Recent</div>
+          <div className="px-2 space-y-1">
+            {sessions.map(session => (
+              <div 
+                key={session.id} 
+                onClick={() => setCurrentSessionId(session.id)}
+                className={`group flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer text-sm transition-colors ${currentSessionId === session.id ? 'bg-[#212121] text-[#ececec]' : 'text-[#888] hover:bg-[#1a1a1a] hover:text-[#ececec]'}`}
+              >
+                <div className="flex items-center gap-2 overflow-hidden">
+                  <MessageSquare size={16} className="shrink-0" />
+                  <span className="truncate">{session.title}</span>
+                </div>
+                <button 
+                  onClick={(e) => deleteSession(e, session.id)}
+                  className="opacity-0 group-hover:opacity-100 hover:text-red-400 p-1 shrink-0"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Main Container */}
+      <div className="flex-1 flex flex-col h-full relative min-w-0">
+        {/* Top Header - Sidebar toggle */}
+        <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
+          <button 
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="p-2 text-[#888] hover:text-[#ececec] rounded-lg border border-transparent hover:border-[#2d2d2d] hover:bg-[#212121] transition-colors bg-[#0f0f0f]/80 backdrop-blur-sm"
+          >
+            {isSidebarOpen ? <PanelLeftClose size={20} /> : <PanelLeft size={20} />}
+          </button>
+        </div>
+
       {/* Scrollable Main Area */}
       <div className="flex-1 overflow-y-auto w-full flex flex-col items-center custom-scrollbar">
         
@@ -119,52 +217,64 @@ function App() {
                 {/* Responses & Judge Area (only when not loading) */}
                 {data && !interaction.loading && (
                   <div className="flex flex-col">
-                    <div className="grid md:grid-cols-2 gap-6 w-full mb-12">
+                    <div className={`grid gap-6 w-full mb-12 ${interaction.preferredResponse ? 'grid-cols-1 max-w-4xl mx-auto' : 'md:grid-cols-2'}`}>
                       {/* Response 1 Panel */}
-                      <div className={`flex flex-col border rounded-xl p-5 bg-[#171717]/50 hover:bg-[#171717] transition-colors ${winner === 1 ? 'border-green-500/50' : 'border-[#2d2d2d]'}`}>
-                        <div className="flex items-center justify-between mb-4 pb-3 border-b border-[#2d2d2d]/60">
-                          <h2 className="text-sm font-semibold text-[#ccc] flex items-center gap-2">
-                            Response 1
-                            {winner === 1 && (
-                              <span className="flex items-center gap-1 text-green-500 bg-green-500/10 px-2 py-0.5 rounded text-xs font-medium">
-                                <CheckCircle2 size={12} />
-                                Recommended
-                              </span>
+                      {(!interaction.preferredResponse || interaction.preferredResponse === 1) && (
+                        <div className={`flex flex-col border rounded-xl p-5 bg-[#171717]/50 hover:bg-[#171717] transition-colors ${winner === 1 ? 'border-green-500/50' : 'border-[#2d2d2d]'}`}>
+                          <div className="flex items-center justify-between mb-4 pb-3 border-b border-[#2d2d2d]/60">
+                            <h2 className="text-sm font-semibold text-[#ccc] flex items-center gap-2">
+                              Response 1
+                              {winner === 1 && (
+                                <span className="flex items-center gap-1 text-green-500 bg-green-500/10 px-2 py-0.5 rounded text-xs font-medium">
+                                  <CheckCircle2 size={12} />
+                                  Recommended
+                                </span>
+                              )}
+                            </h2>
+                            {!interaction.preferredResponse && (
+                              <button 
+                                onClick={() => handlePreferResponse(currentSessionId, index, 1)}
+                                className="text-xs text-[#888] hover:text-[#ccc] px-3 py-1.5 border border-[#2d2d2d] rounded flex items-center gap-2 transition-colors">
+                                Prefer this response
+                              </button>
                             )}
-                          </h2>
-                          <button className="text-xs text-[#888] hover:text-[#ccc] px-3 py-1.5 border border-[#2d2d2d] rounded flex items-center gap-2 transition-colors">
-                            Prefer this response
-                          </button>
+                          </div>
+                          <div className="flex-1">
+                            <FormattedText text={data.solution_1} />
+                          </div>
                         </div>
-                        <div className="flex-1">
-                          <FormattedText text={data.solution_1} />
-                        </div>
-                      </div>
+                      )}
 
                       {/* Response 2 Panel */}
-                      <div className={`flex flex-col border rounded-xl p-5 bg-[#171717]/50 hover:bg-[#171717] transition-colors ${winner === 2 ? 'border-green-500/50' : 'border-[#2d2d2d]'}`}>
-                        <div className="flex items-center justify-between mb-4 pb-3 border-b border-[#2d2d2d]/60">
-                          <h2 className="text-sm font-semibold text-[#ccc] flex items-center gap-2">
-                            Response 2
-                            {winner === 2 && (
-                              <span className="flex items-center gap-1 text-green-500 bg-green-500/10 px-2 py-0.5 rounded text-xs font-medium">
-                                <CheckCircle2 size={12} />
-                                Recommended
-                              </span>
+                      {(!interaction.preferredResponse || interaction.preferredResponse === 2) && (
+                        <div className={`flex flex-col border rounded-xl p-5 bg-[#171717]/50 hover:bg-[#171717] transition-colors ${winner === 2 ? 'border-green-500/50' : 'border-[#2d2d2d]'}`}>
+                          <div className="flex items-center justify-between mb-4 pb-3 border-b border-[#2d2d2d]/60">
+                            <h2 className="text-sm font-semibold text-[#ccc] flex items-center gap-2">
+                              Response 2
+                              {winner === 2 && (
+                                <span className="flex items-center gap-1 text-green-500 bg-green-500/10 px-2 py-0.5 rounded text-xs font-medium">
+                                  <CheckCircle2 size={12} />
+                                  Recommended
+                                </span>
+                              )}
+                            </h2>
+                            {!interaction.preferredResponse && (
+                              <button 
+                                onClick={() => handlePreferResponse(currentSessionId, index, 2)}
+                                className="text-xs text-[#888] hover:text-[#ccc] px-3 py-1.5 border border-[#2d2d2d] rounded flex items-center gap-2 transition-colors">
+                                Prefer this response
+                              </button>
                             )}
-                          </h2>
-                          <button className="text-xs text-[#888] hover:text-[#ccc] px-3 py-1.5 border border-[#2d2d2d] rounded flex items-center gap-2 transition-colors">
-                            Prefer this response
-                          </button>
+                          </div>
+                          <div className="flex-1">
+                            <FormattedText text={data.solution_2} />
+                          </div>
                         </div>
-                        <div className="flex-1">
-                          <FormattedText text={data.solution_2} />
-                        </div>
-                      </div>
+                      )}
                     </div>
 
                     {/* Exact Judge Recommendation Layout from Reference Image */}
-                    <div className="w-full">
+                    <div className={`w-full ${interaction.preferredResponse ? 'max-w-4xl mx-auto' : ''}`}>
                       <h3 className="text-[12px] font-semibold tracking-wider text-[#888] uppercase mb-3 text-left">Judge Recommendation</h3>
                       
                       <div className="bg-[#171717] border border-[#2d2d2d] rounded-xl p-6 flex flex-col">
@@ -220,6 +330,7 @@ function App() {
       </div>
       <div className="text-center pb-4 text-xs text-[#666]">
         AI Battle Arena can make mistakes. Consider verifying responses.
+      </div>
       </div>
     </div>
   );
